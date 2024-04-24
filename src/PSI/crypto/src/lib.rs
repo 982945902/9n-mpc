@@ -38,5 +38,7 @@ fn crypto(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<hash_set::BytesHashSet>()?;
 
+    m.add_class::<curve::SecretV2>()?;
+
     Ok(())
 }

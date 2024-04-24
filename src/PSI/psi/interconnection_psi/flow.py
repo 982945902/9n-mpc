@@ -99,16 +99,33 @@ def diffie_hellman_flow(psi_in: pa.RecordBatch, ctx: Context, lctx):
 
     tasks = [calcu_send_task, recv_calcu_task]
 
-    dua_lctx = lctx.SubWorld("dua", ctx.domain_list)
+    # dua_lctx = lctx.SubWorld("dua", ctx.domain_list)
 
+    # if ctx.need_send_cipher:
+    #     send_dualenc_task = threading.Thread(
+    #         target=store.send_dualenc, args=(ctx, dua_lctx))
+    #     tasks.append(send_dualenc_task)
+
+    # if ctx.need_recv_cipher:
+    #     recv_dualenc_task = threading.Thread(
+    #         target=recv_and_calcu, args=(ctx, dua_lctx, store.recv_duaenc_local_cipher))
+    #     tasks.append(recv_dualenc_task)
+
+    for task in tasks:
+        task.start()
+
+    for task in tasks:
+        task.join()
+
+    tasks = []
     if ctx.need_send_cipher:
         send_dualenc_task = threading.Thread(
-            target=store.send_dualenc, args=(ctx, dua_lctx))
+            target=store.send_dualenc, args=(ctx, lctx))
         tasks.append(send_dualenc_task)
 
     if ctx.need_recv_cipher:
         recv_dualenc_task = threading.Thread(
-            target=recv_and_calcu, args=(ctx, dua_lctx, store.recv_duaenc_local_cipher))
+            target=recv_and_calcu, args=(ctx, lctx, store.recv_duaenc_local_cipher))
         tasks.append(recv_dualenc_task)
 
     for task in tasks:

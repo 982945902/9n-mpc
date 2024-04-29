@@ -553,9 +553,9 @@ dependencies = [
 
 [[package]]
 name = "fourq"
-version = "0.1.1"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cabfa3d3f821d18168f14462c1a3447139a0dead040a7df08187cfec064f1523"
+checksum = "d5ffccc1e5d1014927df43657c14d560d9936ce7b9a3a3a13e4bec75ea93df72"
 dependencies = [
  "bindgen 0.65.1",
  "bindgen 0.69.4",

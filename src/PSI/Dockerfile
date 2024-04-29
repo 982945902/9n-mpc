@@ -26,6 +26,8 @@ RUN set -ex && \
         python3-dev \
         python3-pip \
         ninja-build \
+        llvm \
+        libclang-dev \
         flex && \
     rm -rf /var/lib/apt/lists/*
 
@@ -40,6 +42,9 @@ RUN set -ex && \
     pip3 install grpcio-tools && \
     pip3 install pyOpenSSL && \
     pip3 install pandas==2.1.4 && \
+    pip3 install tqdm && \
+    pip3 install memory_profiler && \
+    pip3 install psutil && \
     pip3 install redis
 
 RUN set -ex && \
@@ -47,6 +52,8 @@ RUN set -ex && \
     chmod +x rustup.sh && \
     ./rustup.sh -y && \
     cp ~/.cargo/bin/* /usr/local/bin/
+
+ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib/
 
 COPY crypto /App/crypto
 WORKDIR /App/crypto

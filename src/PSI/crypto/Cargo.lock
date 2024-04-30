@@ -553,9 +553,9 @@ dependencies = [
 
 [[package]]
 name = "fourq"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5ffccc1e5d1014927df43657c14d560d9936ce7b9a3a3a13e4bec75ea93df72"
+checksum = "3377693012130dffce41bdc1c9303aca55d4c5b142b07ff034c56183f3c5cf40"
 dependencies = [
  "bindgen 0.65.1",
  "bindgen 0.69.4",
@@ -782,7 +782,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.5",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]

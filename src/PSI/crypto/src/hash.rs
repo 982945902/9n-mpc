@@ -49,17 +49,23 @@ fn hash_impl(typ: &str, arr: &BinaryArray) -> BinaryArray {
 }
 
 #[pyfunction]
-pub(crate) fn hash(typ: &str, array: PyArrowType<ArrayData>) -> PyResult<PyArrowType<ArrayData>> {
-    let array: ArrayData = array.0;
-    let array: Arc<dyn Array> = make_array(array);
-    let array: &BinaryArray = array
-        .as_any()
-        .downcast_ref()
-        .ok_or_else(|| PyValueError::new_err("expected binary array"))?;
+pub(crate) fn hash(
+    py: Python<'_>,
+    typ: &str,
+    array: PyArrowType<ArrayData>,
+) -> PyResult<PyArrowType<ArrayData>> {
+    py.allow_threads(|| {
+        let array: ArrayData = array.0;
+        let array: Arc<dyn Array> = make_array(array);
+        let array: &BinaryArray = array
+            .as_any()
+            .downcast_ref()
+            .ok_or_else(|| PyValueError::new_err("expected binary array"))?;
 
-    let array: arrow::array::GenericByteArray<arrow::datatypes::GenericBinaryType<i32>> =
-        hash_impl(typ, &array);
-    Ok(PyArrowType(array.into_data()))
+        let array: arrow::array::GenericByteArray<arrow::datatypes::GenericBinaryType<i32>> =
+            hash_impl(typ, &array);
+        Ok(PyArrowType(array.into_data()))
+    })
 }
 
 pub(crate) static SUPPORT_HASH: [&str; 1] = ["HASH_TYPE_SHAKE_256"];

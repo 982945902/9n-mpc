@@ -23,17 +23,19 @@ pub(crate) struct BytesHashSet {
 #[pymethods]
 impl BytesHashSet {
     #[new]
-    fn new() -> Self {
-        BytesHashSet {
+    fn new(py: Python<'_>) -> Self {
+        py.allow_threads(|| BytesHashSet {
             inner: HashSet::new(),
-        }
+        })
     }
 
-    fn insert(&mut self, value: Vec<u8>) {
-        self.inner.insert(value);
+    fn insert(&mut self, py: Python<'_>, value: Vec<u8>) {
+        py.allow_threads(|| {
+            self.inner.insert(value);
+        })
     }
 
-    fn contains(&self, value: &[u8]) -> bool {
-        self.inner.contains(value)
+    fn contains(&self, py: Python<'_>, value: &[u8]) -> bool {
+        py.allow_threads(|| self.inner.contains(value))
     }
 }

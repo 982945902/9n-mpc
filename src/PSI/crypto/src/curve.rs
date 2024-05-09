@@ -18,6 +18,8 @@ use curve25519_dalek::montgomery::MontgomeryPoint;
 use curve25519_dalek::scalar::Scalar;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
+use pyo3::ToPyObject;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 use std::default;
@@ -69,76 +71,108 @@ impl Secret {
 impl Secret {
     #[new]
     #[pyo3(signature = (typ,key))]
-    fn pynew(typ: &str, key: Option<[u8; 32]>) -> PyResult<Self> {
-        if !SUPPORT_CURVE.contains(&typ) {
-            panic!("no support curve type {}", typ)
-        }
+    fn pynew(py: Python<'_>, typ: &str, key: Option<[u8; 32]>) -> PyResult<Self> {
+        py.allow_threads(|| {
+            if !SUPPORT_CURVE.contains(&typ) {
+                panic!("no support curve type {}", typ)
+            }
 
-        Ok(Self(Scalar::from_bytes_mod_order(key.unwrap_or_else(
-            || {
-                let mut bytes: [u8; 32] = [0; 32];
-                StdRng::from_entropy().fill_bytes(&mut bytes);
-                bytes
-            },
-        ))))
+            Ok(Self(Scalar::from_bytes_mod_order(key.unwrap_or_else(
+                || {
+                    let mut bytes: [u8; 32] = [0; 32];
+                    StdRng::from_entropy().fill_bytes(&mut bytes);
+                    bytes
+                },
+            ))))
+        })
     }
 
     #[pyo3(text_signature = "($self, array)")]
-    fn encrypt(&self, array: PyArrowType<ArrayData>) -> PyResult<PyArrowType<ArrayData>> {
-        self.run_impl(Secret::encrypt_impl, array)
+    fn encrypt(
+        &self,
+        py: Python<'_>,
+        array: PyArrowType<ArrayData>,
+    ) -> PyResult<PyArrowType<ArrayData>> {
+        py.allow_threads(|| self.run_impl(Secret::encrypt_impl, array))
     }
 
     #[pyo3(text_signature = "($self, array)")]
-    fn diffie_hellman(&self, array: PyArrowType<ArrayData>) -> PyResult<PyArrowType<ArrayData>> {
-        self.run_impl(Secret::diffie_hellman_impl, array)
+    fn diffie_hellman(
+        &self,
+        py: Python<'_>,
+        array: PyArrowType<ArrayData>,
+    ) -> PyResult<PyArrowType<ArrayData>> {
+        py.allow_threads(|| self.run_impl(Secret::diffie_hellman_impl, array))
     }
 }
 
 #[pyfunction]
 pub(crate) fn hash_to_curve(
+    py: Python<'_>,
     typ: &str,
     array: PyArrowType<ArrayData>,
 ) -> PyResult<PyArrowType<ArrayData>> {
-    if !SUPPORT_HASHTOCURVE.contains(&typ) {
-        panic!("no support hash_to_curve type {}", typ)
-    }
+    py.allow_threads(|| {
+        if !SUPPORT_HASHTOCURVE.contains(&typ) {
+            panic!("no support hash_to_curve type {}", typ)
+        }
 
-    Ok(array)
+        Ok(array)
+    })
 }
 
 #[pyfunction]
 pub(crate) fn point_octet_marshal(
+    py: Python<'_>,
     typ: &str,
     array: PyArrowType<ArrayData>,
-) -> PyResult<PyArrowType<ArrayData>> {
+) -> PyResult<Py<pyo3::PyAny>> {
     if !SUPPORT_CURVE_POINT_OCTET.contains(&typ) {
         panic!("no support hash_to_curve type {}", typ)
     }
 
-    Ok(array)
+    let array: ArrayData = array.0;
+    let array: Arc<dyn Array> = make_array(array);
+    let array: &BinaryArray = array
+        .as_any()
+        .downcast_ref()
+        .ok_or_else(|| PyValueError::new_err("expected binary array"))?;
+
+    unsafe {
+        Ok(PyBytes::from_ptr(
+            py,
+            array.values().as_ptr() as *const u8,
+            array.values().len(),
+        )
+        .to_object(py))
+    }
+    // Ok(PyBytes::new(py, array.values().as_slice()).to_object(py))
 }
 
 #[pyfunction]
 pub(crate) fn point_octet_unmarshal(
+    py: Python<'_>,
     typ: &str,
     data: &[u8],
     count: usize,
 ) -> PyResult<PyArrowType<ArrayData>> {
-    if !SUPPORT_CURVE_POINT_OCTET.contains(&typ) {
-        panic!("no support hash_to_curve type {}", typ)
-    }
+    py.allow_threads(|| {
+        if !SUPPORT_CURVE_POINT_OCTET.contains(&typ) {
+            panic!("no support hash_to_curve type {}", typ)
+        }
 
-    let mut build = BinaryBuilder::new();
-    if count == 0 {
-        return Ok(PyArrowType(build.finish().into_data()));
-    }
-    let block_size: usize = data.len() / count;
+        let mut build = BinaryBuilder::new();
+        if count == 0 {
+            return Ok(PyArrowType(build.finish().into_data()));
+        }
+        let block_size: usize = data.len() / count;
 
-    for i in 0..count {
-        build.append_value(&data[i * block_size..i * block_size + block_size])
-    }
+        for i in 0..count {
+            build.append_value(&data[i * block_size..i * block_size + block_size])
+        }
 
-    Ok(PyArrowType(build.finish().into_data()))
+        Ok(PyArrowType(build.finish().into_data()))
+    })
 }
 
 pub(crate) static SUPPORT_CURVE: [&str; 1] = ["CURVE_TYPE_CURVE25519"];
@@ -156,7 +190,7 @@ pub(crate) static SUPPORT_CURVE_V2: [&str; 2] = ["CURVE_TYPE_CURVE25519", "CURVE
 // pub(crate) static SUPPORT_CURVE_POINT_OCTET_V2: [&str; 2] =
 //     ["POINT_OCTET_FORMAT_UNCOMPRESSED", "POINT_FOURQ_FORMAT"];
 
-pub(crate) trait SecretFFI: Send {
+pub(crate) trait SecretFFI: Send + Sync {
     fn encrypt_impl(&self, data: &[u8], build: &mut BinaryBuilder);
     fn diffie_hellman_impl(&self, data: &[u8], build: &mut BinaryBuilder);
     fn new_impl(key: &[u8]) -> Box<dyn SecretFFI>
@@ -266,31 +300,43 @@ impl SecretV2 {
 impl SecretV2 {
     #[new]
     #[pyo3(signature = (typ,key))]
-    fn pynew(typ: &str, key: Option<[u8; 32]>) -> PyResult<Self> {
-        if !SUPPORT_CURVE_V2.contains(&typ) {
-            panic!("no support curve type {}", typ)
-        }
+    fn pynew(py: Python<'_>, typ: &str, key: Option<[u8; 32]>) -> PyResult<Self> {
+        py.allow_threads(|| {
+            if !SUPPORT_CURVE_V2.contains(&typ) {
+                panic!("no support curve type {}", typ)
+            }
 
-        let std_key = key.unwrap_or_else(|| {
-            let mut bytes: [u8; 32] = [0; 32];
-            StdRng::from_entropy().fill_bytes(&mut bytes);
-            bytes
-        });
+            let std_key = key.unwrap_or_else(|| {
+                let mut bytes: [u8; 32] = [0; 32];
+                StdRng::from_entropy().fill_bytes(&mut bytes);
+                bytes
+            });
 
-        match typ {
-            "CURVE_TYPE_CURVE25519" => Ok(SecretV2(Secret_25519::new_impl(&std_key))),
-            "CURVE_TYPE_FOURQ" => Ok(SecretV2(Secret_fourq::new_impl(&std_key))),
-            &_ => Err(PyValueError::new_err("Invalid curve type")),
-        }
+            match typ {
+                "CURVE_TYPE_CURVE25519" => Ok(SecretV2(Secret_25519::new_impl(&std_key))),
+                "CURVE_TYPE_FOURQ" => Ok(SecretV2(Secret_fourq::new_impl(&std_key))),
+                &_ => Err(PyValueError::new_err("Invalid curve type")),
+            }
+        })
     }
 
     #[pyo3(text_signature = "($self, array)")]
-    fn encrypt(&self, array: PyArrowType<ArrayData>) -> PyResult<PyArrowType<ArrayData>> {
-        self.run_impl(|data, build| self.0.encrypt_impl(data, build), array)
+    fn encrypt(
+        &self,
+        py: Python<'_>,
+        array: PyArrowType<ArrayData>,
+    ) -> PyResult<PyArrowType<ArrayData>> {
+        py.allow_threads(|| self.run_impl(|data, build| self.0.encrypt_impl(data, build), array))
     }
 
     #[pyo3(text_signature = "($self, array)")]
-    fn diffie_hellman(&self, array: PyArrowType<ArrayData>) -> PyResult<PyArrowType<ArrayData>> {
-        self.run_impl(|data, build| self.0.diffie_hellman_impl(data, build), array)
+    fn diffie_hellman(
+        &self,
+        py: Python<'_>,
+        array: PyArrowType<ArrayData>,
+    ) -> PyResult<PyArrowType<ArrayData>> {
+        py.allow_threads(|| {
+            self.run_impl(|data, build| self.0.diffie_hellman_impl(data, build), array)
+        })
     }
 }

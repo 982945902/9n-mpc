@@ -40,7 +40,7 @@ RUN set -ex && \
     pip3 install ray==2.10.0 && \
     pip3 install pyarrow && \
     pip3 install grpcio-tools && \
-    pip3 install pyOpenSSL && \
+    pip3 install rocksdict && \
     pip3 install pandas==2.1.4 && \
     pip3 install tqdm && \
     pip3 install memory_profiler && \

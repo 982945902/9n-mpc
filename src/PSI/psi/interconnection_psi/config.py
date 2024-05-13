@@ -26,7 +26,7 @@ from .log import logger
 
 
 class Context():
-    def __init__(self, rank, item_num, result_to_rank, domain_list) -> None:
+    def __init__(self, rank, item_num, result_to_rank, domain_list, runtime_conf=None) -> None:
         self.version = 1
 
         self.protocol_families: List[int] = [
@@ -57,6 +57,10 @@ class Context():
         self.item_num = item_num
         self.result_to_rank = result_to_rank
         self.domain_list = domain_list
+
+        self.runtime_conf = runtime_conf
+
+        self.cipher_store_use_cache = False 
 
     def make_handshake_request(self) -> entry_pb2.HandshakeRequest:
         protocol_family_params = []

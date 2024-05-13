@@ -25,7 +25,8 @@ def psi_sender(psi_in: pa.RecordBatch, task_id: str,
                local_address: str, remote_address: str,
                self_domain: str, target_domain: str,
                redis_address: str, redis_password: str,
-               send_back: bool) -> pa.RecordBatch:
+               send_back: bool,
+               runtime_conf=None) -> pa.RecordBatch:
     """
     sender.
 
@@ -46,7 +47,8 @@ def psi_sender(psi_in: pa.RecordBatch, task_id: str,
 
     ctx = Context(rank=SENDER_RANK, item_num=psi_in.num_rows,
                   result_to_rank=-1 if send_back else RECEIVER_RANK,
-                  domain_list=[self_domain, target_domain])
+                  domain_list=[self_domain, target_domain],
+                  runtime_conf=runtime_conf)
 
     lctx = link_py.CreateContext(rank=SENDER_RANK, self_domain=self_domain,
                                  target_domain=target_domain, id=task_id,
@@ -68,7 +70,8 @@ def psi_receiver(psi_in: pa.RecordBatch, task_id: str,
                  local_address: str, remote_address: str,
                  self_domain: str, target_domain: str,
                  redis_address: str, redis_password: str,
-                 send_back: bool) -> pa.RecordBatch:
+                 send_back: bool,
+                 runtime_conf=None) -> pa.RecordBatch:
     """
     receiver.
 
@@ -90,7 +93,8 @@ def psi_receiver(psi_in: pa.RecordBatch, task_id: str,
     ctx = Context(rank=RECEIVER_RANK,
                   item_num=psi_in.num_rows,
                   result_to_rank=-1 if send_back else RECEIVER_RANK,
-                  domain_list=[target_domain, self_domain])
+                  domain_list=[target_domain, self_domain],
+                  runtime_conf=runtime_conf)
 
     lctx = link_py.CreateContext(rank=RECEIVER_RANK, self_domain=self_domain,
                                  target_domain=target_domain, id=task_id,

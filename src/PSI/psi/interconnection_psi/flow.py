@@ -22,6 +22,7 @@ from .cipher_store import CipherStore
 
 import pyarrow as pa
 import threading
+from tqdm import tqdm
 
 
 def shakehand_flow(ctx: Context, lctx):
@@ -56,20 +57,21 @@ def calcucipher_and_send(array, batch, ctx, lctx):
         ))
         return
 
-    for i in range(0, len(array), batch):
+    for i in tqdm(range(0, len(array), batch), desc='calcucipher_and_send'):
         arr = array[i:i+batch]
         count = len(arr)
         if i+batch >= len(array):
             is_last_batch = True
 
         arr = ctx.hash_and_encrypt(arr)
+        ciphertext = ctx.point_octet_marshal(arr)
 
         protomsg = ecdh_psi_pb2.EcdhPsiCipherBatch(
             type="enc",
             batch_index=batch_index,
             is_last_batch=is_last_batch,
             count=count,
-            ciphertext=b''.join(arr.to_pylist())
+            ciphertext=ciphertext
         )
 
         lctx_send_proto(lctx, protomsg)
@@ -79,6 +81,7 @@ def calcucipher_and_send(array, batch, ctx, lctx):
 
 def recv_and_calcu(ctx, lctx, prcess):
     done = False
+    bar = tqdm(desc=f'recv_and_calcu {prcess.__name__}', total=100)
     while not done:
         protomsg = lctx_recv_proto(lctx, ecdh_psi_pb2.EcdhPsiCipherBatch)
         if protomsg.is_last_batch:
@@ -86,11 +89,12 @@ def recv_and_calcu(ctx, lctx, prcess):
 
         arr = ctx.point_octet_unmarshal(protomsg.ciphertext, protomsg.count)
         prcess(arr, ctx, done)
+        bar.update(1)
 
 
 def diffie_hellman_flow(psi_in: pa.RecordBatch, ctx: Context, lctx):
     psi_id = psi_in.column(0)
-    store = CipherStore()
+    store = CipherStore(ctx.cipher_store_use_cache)
 
     calcu_send_task = threading.Thread(target=calcucipher_and_send,
                                        args=(psi_id, BATCH, ctx, lctx))

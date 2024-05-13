@@ -16,15 +16,30 @@ from .interconnection.runtime import ecdh_psi_pb2
 
 from .base import lctx_send_proto
 
-import crypto
 import queue
 from threading import Event
+from tqdm import tqdm
 
 
 class CipherStore():
-    def __init__(self) -> None:
+    def __init__(self, use_cache: bool = True) -> None:
         self.peer_cipher = queue.Queue()
-        self.peer_cipher_set = crypto.BytesHashSet()
+
+        if use_cache:
+            import rocksdict
+            self.peer_cipher_set = rocksdict.Rdict(f"./peer_cipher_set_{hash(self)}")
+            setattr(self, "insert",
+                    lambda cipher: self.peer_cipher_set.put(cipher, b''))
+            setattr(self, "contains",
+                    lambda cipher: self.peer_cipher_set.get(cipher) is not None)
+        else:
+            import crypto
+            self.peer_cipher_set = crypto.BytesHashSet()
+            setattr(self, "insert",
+                    lambda cipher: self.peer_cipher_set.insert(cipher))
+            setattr(self, "contains",
+                    lambda cipher: self.peer_cipher_set.contains(cipher))
+
         self.peer_cipher_set_done = Event()
 
         self.local_index_record = 0
@@ -39,14 +54,14 @@ class CipherStore():
 
         if ctx.need_recv_cipher:
             for cipher in array.to_pylist():
-                self.peer_cipher_set.insert(cipher)
+                self.insert(cipher)
             if done:
                 self.peer_cipher_set_done.set()
 
     def send_dualenc(self, ctx, lctx):
         batch_index = 0
         is_last_batch = False
-
+        bar = tqdm(desc='send_dualenc', total=100)
         while not is_last_batch:
             arr = self.peer_cipher.get()
 
@@ -54,7 +69,7 @@ class CipherStore():
                 arr = self.peer_cipher.get()
                 is_last_batch = True
 
-            arr = ctx.point_octet_marshal(arr)
+            ciphertext = ctx.point_octet_marshal(arr)
             count = len(arr)
 
             protomsg = ecdh_psi_pb2.EcdhPsiCipherBatch(
@@ -62,17 +77,18 @@ class CipherStore():
                 batch_index=batch_index,
                 is_last_batch=is_last_batch,
                 count=count,
-                ciphertext=b''.join(arr.to_pylist())
+                ciphertext=ciphertext
             )
 
             lctx_send_proto(lctx, protomsg)
 
             batch_index += 1
+            bar.update(1)
 
     def recv_duaenc_local_cipher(self, array, ctx, done):
         self.peer_cipher_set_done.wait()
         for cipher in array.to_pylist():
-            if self.peer_cipher_set.contains(cipher):
+            if self.contains(cipher):
                 self.local_take_index.append(self.local_index_record)
 
             self.local_index_record += 1

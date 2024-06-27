@@ -9,8 +9,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -163,8 +161,7 @@ func newControler(conf *Config) (c *controler, err error) {
 
 	c.s.POST(create_subject_url, c.createSubject)
 
-	port, _ := strconv.Atoi(strings.Split(conf.LinkHost, ":")[1])
-	sdk.RegisterToProxy(conf.RedisServer, conf.RedisPassword, conf.Id, port)
+	sdk.RegisterToProxy(conf.RedisServer, conf.RedisPassword, conf.Id, conf.LinkHost)
 
 	go func() {
 		quit := make(chan os.Signal, 1)

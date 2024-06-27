@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -18,8 +17,7 @@ func debug() {
 
 	hlog.Infof("debug mode")
 
-	port, _ := strconv.Atoi(strings.Split(globalConfig.LinkHost, ":")[1])
-	sdk.RegisterToProxy(globalConfig.RedisServer, globalConfig.RedisPassword, globalConfig.Id, port)
+	sdk.RegisterToProxy(globalConfig.RedisServer, globalConfig.RedisPassword, globalConfig.Id, globalConfig.LinkHost)
 
 	go func() {
 		quit := make(chan os.Signal, 1)

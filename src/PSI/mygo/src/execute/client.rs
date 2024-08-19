@@ -57,10 +57,10 @@ impl Client {
         let mut request: tonic::Request<PsiExecuteRequest> = tonic::Request::new(req);
         request
             .metadata_mut()
-            .insert("id", MetadataValue::try_from(&self.id).unwrap());
+            .insert("id", MetadataValue::try_from(&self.id)?);
         request
             .metadata_mut()
-            .insert("target", MetadataValue::try_from(&self.target).unwrap());
+            .insert("target", MetadataValue::try_from(&self.target)?);
 
         match self.client.clone().psi_execute(request).await {
             Ok(resp) => Ok(resp.into_inner()),

@@ -66,7 +66,7 @@ struct Args {
     redis_password: String,
 
     /// curve
-    #[clap(long, default_value = "p256")]
+    #[clap(long, default_value = "curve25519")]
     curve: String,
 
     /// psi_host

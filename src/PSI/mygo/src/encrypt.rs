@@ -42,7 +42,7 @@ fn format_key(key: &[u8]) -> [u8; 32] {
 }
 
 mod curve25519_curve {
-    use crate::encrypt::SecretFFI;
+    use crate::encrypt::{format_key, SecretFFI};
     use crate::front::err::AppError;
     use curve25519_dalek::montgomery::MontgomeryPoint;
     use curve25519_dalek::scalar::Scalar;
@@ -81,9 +81,7 @@ mod curve25519_curve {
         }
 
         fn new(key: &[u8]) -> Box<dyn SecretFFI> {
-            Box::new(Secret(Scalar::from_bytes_mod_order(
-                key.try_into().unwrap(),
-            )))
+            Box::new(Secret(Scalar::from_bytes_mod_order(format_key(key))))
         }
     }
 }

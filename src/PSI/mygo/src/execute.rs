@@ -27,14 +27,14 @@ use std::convert::Infallible;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 use tokio::spawn;
-use tokio::sync::oneshot;
+use tokio::sync::Notify;
 use tokio::time::{sleep, Duration};
 
 pub struct ExecuteEngine {
     pub client: Client,
-    pub join_handle: tokio::task::JoinHandle<()>,
-    pub shutdown: oneshot::Sender<()>,
+    exit_sig: Arc<Notify>,
 }
 
 impl Debug for ExecuteEngine {
@@ -74,9 +74,10 @@ impl ExecuteEngine {
             )?;
         }
 
-        let (shutdown, rx) = oneshot::channel::<()>();
+        let exit_sig = Arc::new(Notify::new());
         let server_curve = Curve::new(key.as_bytes(), &curve);
-        let join_handle = spawn(async move {
+        let exit_sig2 = exit_sig.clone();
+        let _ = spawn(async move {
             let grpc_service = tonic::transport::Server::builder()
                 .add_service(ExecuteServiceServer::new(ExecuteServiceImpl::new(
                     server_curve,
@@ -92,10 +93,11 @@ impl ExecuteEngine {
             builder
                 .serve(make_grpc_service)
                 .with_graceful_shutdown(async {
-                    rx.await.ok();
+                    exit_sig2.notified().await;
                 })
                 .await
                 .expect("Error with HTTP server!");
+            exit_sig2.notify_waiters();
         });
 
         //for debug
@@ -104,8 +106,18 @@ impl ExecuteEngine {
 
         Ok(ExecuteEngine {
             client: client,
-            join_handle: join_handle,
-            shutdown: shutdown,
+            exit_sig: exit_sig,
         })
+    }
+
+    pub async fn shutdown(&self) {
+        self.exit_sig.notify_waiters();
+
+        tokio::select! {
+            _  = async {self.exit_sig.notified().await;} => {
+            },
+            _ = async {sleep(Duration::from_secs(2)).await;} => {
+            }
+        }
     }
 }

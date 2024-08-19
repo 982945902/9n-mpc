@@ -150,6 +150,8 @@ async fn shutdown_signal(state: AppStateDyn) {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+
+    state.engine.shutdown().await;
 }
 
 mod tests {

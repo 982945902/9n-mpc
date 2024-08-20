@@ -16,10 +16,12 @@ pub mod client;
 pub mod serve;
 
 use crate::api::execute_service_server::ExecuteServiceServer;
+use crate::api::{PsiExecuteRequest, PsiExecuteResult};
 use crate::encrypt::Curve;
 use crate::execute::client::Client;
 use crate::execute::serve::ExecuteServiceImpl;
 use crate::front::err::AppError;
+use crate::policy::{Policy, PolicyConf};
 use hyper::service::make_service_fn;
 use local_ip_address::local_ip;
 use redis::Commands;
@@ -33,8 +35,9 @@ use tokio::sync::Notify;
 use tokio::time::{sleep, Duration};
 
 pub struct ExecuteEngine {
-    pub client: Client,
+    client: Arc<Client>,
     exit_sig: Arc<Notify>,
+    policy: Policy,
 }
 
 impl Debug for ExecuteEngine {
@@ -53,6 +56,7 @@ impl ExecuteEngine {
         id: String,
         redis_address: String,
         redis_password: String,
+        policy_conf: PolicyConf,
     ) -> Result<Self, AppError> {
         //for debug
         if !redis_address.is_empty() {
@@ -102,11 +106,15 @@ impl ExecuteEngine {
 
         //for debug
         let _ = sleep(Duration::from_secs(1)).await;
-        let client = Client::new(Curve::new(key.as_bytes(), &curve), remote, target, id).await?;
+        let client =
+            Arc::new(Client::new(Curve::new(key.as_bytes(), &curve), remote, target, id).await?);
+
+        let policy = Policy::new(&policy_conf, client.clone()).await?;
 
         Ok(ExecuteEngine {
             client: client,
             exit_sig: exit_sig,
+            policy: policy,
         })
     }
 
@@ -119,5 +127,9 @@ impl ExecuteEngine {
             _ = async {sleep(Duration::from_secs(2)).await;} => {
             }
         }
+    }
+
+    pub async fn psi_execute(&self, req: &PsiExecuteRequest) -> Result<PsiExecuteResult, AppError> {
+        self.policy.execute(req).await
     }
 }

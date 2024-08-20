@@ -22,6 +22,22 @@ pub struct AppError {
     pub err: Error,
 }
 
+impl AppError {
+    pub fn new(err: String) -> Self {
+        AppError {
+            err: Error::msg(err),
+        }
+    }
+}
+
+impl Clone for AppError {
+    fn clone(&self) -> Self {
+        AppError {
+            err: Error::msg(self.err.to_string()),
+        }
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         PsiExecuteResult {

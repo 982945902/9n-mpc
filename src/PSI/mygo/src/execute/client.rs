@@ -68,6 +68,34 @@ impl Client {
         }
     }
 
+    pub fn encrypt_req(&self, req: &PsiExecuteRequest) -> Result<PsiExecuteRequest, AppError> {
+        let keys = self.curve.encrypt_self(&req.keys)?;
+        let req = PsiExecuteRequest {
+            keys: keys,
+            ..req.clone()
+        };
+
+        Ok(req)
+    }
+
+    pub async fn psi_execute_without_encrypt(
+        &self,
+        req: &PsiExecuteRequest,
+    ) -> Result<PsiExecuteResult, AppError> {
+        let mut request: tonic::Request<PsiExecuteRequest> = tonic::Request::new(req.to_owned());
+        request
+            .metadata_mut()
+            .insert("id", MetadataValue::try_from(&self.id)?);
+        request
+            .metadata_mut()
+            .insert("target", MetadataValue::try_from(&self.target)?);
+
+        match self.client.clone().psi_execute(request).await {
+            Ok(resp) => Ok(resp.into_inner()),
+            Err(e) => Err(AppError::from(e)),
+        }
+    }
+
     pub async fn psi_stream_execute<
         T: Iterator<Item = PsiExecuteRequest> + Send + Sync + 'static,
         // R: Iterator<Item = Result<PsiExecuteResult, AppError>>,

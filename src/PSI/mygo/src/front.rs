@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppStateDyn {
-    pub engine: Arc<Box<ExecuteEngine>>,
+    pub engine: Arc<ExecuteEngine>,
 }
 
 pub async fn do_psi(
@@ -46,7 +46,7 @@ pub async fn do_psi_impl(
     state: State<AppStateDyn>,
     req: &PsiExecuteRequest,
 ) -> Result<Response, AppError> {
-    let rsp = state.engine.client.psi_execute(&req).await?;
+    let rsp = state.engine.psi_execute(&req).await?;
 
     {
         let request_info = rsp.header.clone().unwrap();

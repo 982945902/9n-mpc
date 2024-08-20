@@ -20,8 +20,10 @@ mod policy;
 
 use crate::execute::ExecuteEngine;
 use crate::front::{do_psi, AppStateDyn};
+use crate::policy::{BatcherPolicyConf, PolicyConf};
 use axum::{routing::post, Router};
 use clap::Parser;
+// use num_cpus;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -72,6 +74,26 @@ struct Args {
     /// psi_host
     #[clap(long, default_value = "0.0.0.0:6324")]
     psi_host: String,
+
+    ///policy
+    #[clap(long, default_value = "default")]
+    policy: String,
+
+    ///batcher-duration-ms
+    #[clap(long, default_value = "10")]
+    batcher_duration_ms: usize,
+
+    ///batcher-cache
+    #[clap(long, default_value = "10000")]
+    batcher_cache: usize,
+
+    ///batcher-batch-size
+    #[clap(long, default_value = "1000")]
+    batcher_batch_size: usize,
+
+    ///batcher-workers
+    #[clap(long, default_value = "8")]
+    batcher_workers: usize,
 }
 
 #[tokio::main]
@@ -99,7 +121,7 @@ async fn main() {
         args.remote = format!("http://{}", args.remote);
     }
 
-    let engine = Arc::new(Box::new(
+    let engine = Arc::new(
         ExecuteEngine::new(
             args.key,
             args.curve,
@@ -109,10 +131,20 @@ async fn main() {
             args.id,
             args.redis_address,
             args.redis_password,
+            match args.policy.as_str() {
+                "batcher" => PolicyConf::BatcherConf(BatcherPolicyConf {
+                    // workers: num_cpus::get(),
+                    workers: args.batcher_workers,
+                    duration_ms: args.batcher_duration_ms,
+                    cache: args.batcher_cache,
+                    batch_size: args.batcher_batch_size,
+                }),
+                _ => PolicyConf::DefaultConf,
+            },
         )
         .await
         .unwrap(),
-    ));
+    );
 
     let state = AppStateDyn { engine: engine };
 
@@ -158,6 +190,7 @@ mod tests {
     use super::*;
     use crate::api::PsiExecuteRequest;
     use core::time;
+    use policy::BatcherPolicyConf;
     use rand;
     use std::thread;
     use tokio;
@@ -173,7 +206,7 @@ mod tests {
                 .take(32)
                 .map(char::from)
                 .collect();
-            let curve = "fourq".to_string();
+            let curve = "curve25519".to_string();
 
             let mut engine = ExecuteEngine::new(
                 key,
@@ -184,13 +217,18 @@ mod tests {
                 "test".to_string(),
                 "".to_string(),
                 "".to_string(),
+                PolicyConf::BatcherConf(BatcherPolicyConf {
+                    workers: 8,
+                    duration_ms: 10,
+                    cache: 100,
+                    batch_size: 100,
+                }),
             )
             .await
             .unwrap();
 
             for i in 0..100 {
                 let res = engine
-                    .client
                     .psi_execute(&PsiExecuteRequest {
                         header: None,
                         keys: vec!["1".into(), "2".into()],
@@ -208,7 +246,7 @@ mod tests {
                 .take(32)
                 .map(char::from)
                 .collect();
-            let curve = "fourq".to_string();
+            let curve = "curve25519".to_string();
 
             let engine = ExecuteEngine::new(
                 key,
@@ -219,6 +257,12 @@ mod tests {
                 "test".to_string(),
                 "".to_string(),
                 "".to_string(),
+                PolicyConf::BatcherConf(BatcherPolicyConf {
+                    workers: 8,
+                    duration_ms: 10,
+                    cache: 100,
+                    batch_size: 100,
+                }),
             )
             .await
             .unwrap();

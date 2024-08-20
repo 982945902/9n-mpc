@@ -15,6 +15,7 @@ RUN set -ex && \
 COPY . /App/
 WORKDIR /App
 
-RUN cargo build --release
+RUN cargo build --release && \
+    mv target/release/mygo /App/mygo
 
-ENTRYPOINT ["sleep","30d"]
+ENTRYPOINT ["./mygo"]

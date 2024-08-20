@@ -14,10 +14,8 @@
 
 use crate::api::{PsiExecuteRequest, PsiExecuteResult, RequestHeader, ResultHeader};
 use crate::front::err::AppError;
-use crate::policy::new;
 use prost_types::Any;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use axum::{
     async_trait,

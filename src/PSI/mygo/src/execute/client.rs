@@ -53,17 +53,17 @@ impl Client {
 
     async fn retry_connect(&self, status: &Status) {
         if status.code() == tonic::Code::Unavailable {
-            let conn = ExecuteServiceClient::connect(self.remote.clone()).await;
-            if let Ok(client) = conn {
-                let no_creating_client = self.client.try_write();
-                if no_creating_client.is_err() {
-                    return;
+            let no_creating_client = self.client.try_write();
+            if no_creating_client.is_err() {
+                return;
+            } else {
+                let conn = ExecuteServiceClient::connect(self.remote.clone()).await;
+                if conn.is_err() {
+                    tracing::error!("reconnect to remote failed");
                 } else {
-                    *no_creating_client.unwrap() = client;
+                    *no_creating_client.unwrap() = conn.unwrap();
                     tracing::info!("reconnect to remote success");
                 }
-            } else {
-                tracing::error!("reconnect to remote failed");
             }
         }
     }
